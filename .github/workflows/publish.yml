@@ -60,7 +60,7 @@ jobs:
 
       - name: Publish
         if: steps.published.outputs.yes == 'false'
-        run: npm publish --provenance
+        run: npm publish --provenance --access public
 
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
