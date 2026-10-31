@@ -30,9 +30,9 @@ test('normalizeItems trims, drops blanks, caps length', () => {
 
 test('loadItems returns defaults when empty, corrupt, or missing', () => {
   const s = memoryStorage()
-  assert.deepEqual(core.loadItems(s), ['按照你的推荐建议执行', '继续'])
+  assert.deepEqual(core.loadItems(s), ['按推荐执行', '我已做完，你继续', '端到端测试一下', '/handoff'])
   s.setItem(core.STORAGE_KEY, '{not json')
-  assert.deepEqual(core.loadItems(s), ['按照你的推荐建议执行', '继续'])
+  assert.deepEqual(core.loadItems(s), ['按推荐执行', '我已做完，你继续', '端到端测试一下', '/handoff'])
   s.setItem(core.STORAGE_KEY, JSON.stringify(['只一条']))
   assert.deepEqual(core.loadItems(s), ['只一条'])
 })

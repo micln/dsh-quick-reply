@@ -29,7 +29,7 @@ window.__ModuleLoader__.load({
 
     const NS = 'conversation.quickReply';
     const STORAGE_KEY = 'dsh-quick-reply:items:v1';
-    const DEFAULT_ITEMS = Object.freeze(['按照你的推荐建议执行', '继续']);
+    const DEFAULT_ITEMS = Object.freeze(['按推荐执行', '我已做完，你继续', '端到端测试一下', '/handoff']);
     const MAX_ITEMS = 20;
     const MAX_TEXT_LENGTH = 2000;
     const MAX_MATCHES = 50;

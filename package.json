@@ -1,6 +1,6 @@
 {
   "name": "dsh-quick-reply",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Adds a composer-dock button that sends a user-configured, ordered sequence of messages (e.g. \"按照你的推荐建议执行\", \"继续\") into the current DSH session.",
   "license": "MIT",
   "repository": {
