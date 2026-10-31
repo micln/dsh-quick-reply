@@ -25,7 +25,10 @@ window.__ModuleLoader__.load({
     const name = 'dsh-quick-reply';
     // `remote.skills` is the session-addressed skill catalog Remote; without it
     // the plugin still works, it just cannot offer `/name` candidates.
-    const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.skills', 'webTerminals', 'sidebarRight'];
+    // Only the services the dock cannot run without. Cordis treats every name here as
+    // mandatory, so optional services (skills, terminal, sidebar) are read with `scope.get`
+    // and degrade when absent.
+    const inject = ['slots', 'locale', 'sessions'];
 
     const NS = 'conversation.quickReply';
     const STORAGE_KEY = 'dsh-quick-reply:items:v1';
@@ -928,7 +931,7 @@ window.__ModuleLoader__.load({
       ctx.effect(() => ctx.locale.register(NS, DICTS), 'quick-reply: dictionaries');
       ctx.effect(() => installStyles(), 'quick-reply: stylesheet');
 
-      ctx.inject(['slots', 'locale', 'sessions', 'remote', 'remote.skills', 'webTerminals', 'sidebarRight'], (scope) => {
+      ctx.inject(['slots', 'locale', 'sessions'], (scope) => {
         const slots = scope.get('slots');
         const sessions = scope.get('sessions');
         const remotes = scope.get('remote');
