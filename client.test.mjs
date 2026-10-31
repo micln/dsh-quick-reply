@@ -113,3 +113,12 @@ test('rankSkills prefers prefix hits then shorter names, capped', () => {
   assert.deepEqual(core.rankSkills(skills, 'zzz'), [])
   assert.deepEqual(core.rankSkills(skills, 'OFF').map(s => s.name), ['office', 'tools-office'])
 })
+
+test('parseRun recognises only `! ` phrases with a command', () => {
+  assert.equal(core.parseRun('! npm run dev'), 'npm run dev')
+  assert.equal(core.parseRun('!   pnpm test  '), 'pnpm test')
+  assert.equal(core.parseRun('! '), null)
+  assert.equal(core.parseRun('!'), null)
+  assert.equal(core.parseRun('npm run dev'), null)
+  assert.equal(core.parseRun('/tdd'), null)
+})

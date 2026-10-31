@@ -25,7 +25,7 @@ window.__ModuleLoader__.load({
     const name = 'dsh-quick-reply';
     // `remote.skills` is the session-addressed skill catalog Remote; without it
     // the plugin still works, it just cannot offer `/name` candidates.
-    const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.skills'];
+    const inject = ['slots', 'locale', 'sessions', 'remote', 'remote.skills', 'webTerminals', 'sidebarRight'];
 
     const NS = 'conversation.quickReply';
     const STORAGE_KEY = 'dsh-quick-reply:items:v1';
@@ -171,12 +171,28 @@ window.__ModuleLoader__.load({
       return next;
     }
 
+    /**
+     * A phrase starting with `! ` is a command: it runs in the DSH terminal
+     * instead of being sent to the Agent. Returns the command, or null.
+     */
+    const RUN_PREFIX = '! ';
+    // Command phrases are switched off: `! ...` is sent to the Agent as plain text.
+    // Flip to true to restore terminal execution.
+    const RUN_ENABLED = false;
+    function parseRun(text) {
+      if (typeof text !== 'string' || !text.startsWith(RUN_PREFIX)) return null;
+      const command = text.slice(RUN_PREFIX.length).trim();
+      return command.length > 0 ? command : null;
+    }
+
     const core = Object.freeze({
       STORAGE_KEY,
       DEFAULT_ITEMS,
       MAX_ITEMS,
       MAX_TEXT_LENGTH,
       SKILL_GESTURE,
+      RUN_PREFIX,
+      parseRun,
       normalizeItems,
       loadItems,
       saveItems,
@@ -210,10 +226,13 @@ window.__ModuleLoader__.load({
         tooLong: `Each phrase is limited to ${MAX_TEXT_LENGTH} characters`,
         sending: 'Sending…',
         sendFailed: 'Failed to send: ',
+        runFailed: 'Failed to run in terminal: ',
+        noTerminal: 'The terminal service is unavailable.',
         noSession: 'No session is selected.',
         noConversation: 'Conversation service is unavailable for this session.',
         storageFailed: 'Could not save to browser storage: ',
         skillPick: 'Insert a skill',
+        runPick: 'Make this a command (! prefix)',
         skillLoading: 'Loading…',
         skillSearch: 'Filter skills',
         skillNone: 'No matching skill',
@@ -237,10 +256,13 @@ window.__ModuleLoader__.load({
         tooLong: `单条最多 ${MAX_TEXT_LENGTH} 字`,
         sending: '发送中…',
         sendFailed: '发送失败：',
+        runFailed: '运行失败：',
+        noTerminal: '终端服务不可用。',
         noSession: '未选择会话。',
         noConversation: '当前会话的 conversation 服务不可用。',
         storageFailed: '无法写入浏览器存储：',
         skillPick: '插入技能',
+        runPick: '设为命令（! 前缀）',
         skillLoading: '加载中…',
         skillSearch: '筛选技能',
         skillNone: '没有匹配的技能',
@@ -351,9 +373,9 @@ window.__ModuleLoader__.load({
 .dqr-skills { box-sizing: border-box; width: 100%; max-height: 156px; margin: 0; padding: 2px 0; list-style: none; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--dsw-alias-border-l1); }
 .dqr-skill-item { display: flex; flex-direction: column; align-items: stretch; gap: 0; width: 100%; box-sizing: border-box; padding: 3px 6px; border: none; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-primary); font: inherit; text-align: left; cursor: pointer; }
 .dqr-skill-item:hover, .dqr-skill-item:focus-visible { background: var(--dsw-alias-interactive-bg-hover); }
-.dqr-skill-name { display: flex; align-items: center; gap: 4px; max-width: 100%; overflow: hidden; white-space: nowrap; font-family: var(--dsw-font-markdown-code-block-small, ui-monospace, monospace); }
+.dqr-skill-name svg { display: block; flex: none; }
+.dqr-skill-name { display: flex; align-items: center; gap: 4px; line-height: 16px; max-width: 100%; overflow: hidden; white-space: nowrap; font-family: var(--dsw-font-markdown-code-block-small, ui-monospace, monospace); }
 .dqr-skill-desc { max-width: 100%; color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dqr-skill-mark { flex: none; padding-right: 2px; color: var(--dsw-alias-label-tertiary); }
 .dqr-note { padding: 8px; color: var(--dsw-alias-label-tertiary, #888); font-size: 12px; }
 .dqr-error { color: var(--dsw-alias-state-error-primary); overflow-wrap: anywhere; }
 `;
@@ -373,6 +395,63 @@ window.__ModuleLoader__.load({
         return { error: 'noConversation' };
       }
       return { send: text => conversation.send(text) };
+    }
+
+    /** Resolve when the view can accept input; reject when it fails or closes first. */
+    function untilWritable(state, timeoutMs) {
+      return new Promise((resolve, reject) => {
+        let unsubscribe = () => {};
+        const timer = setTimeout(() => finish(new Error('timeout')), timeoutMs);
+        const finish = (error) => {
+          clearTimeout(timer);
+          unsubscribe();
+          if (error === undefined) resolve(); else reject(error);
+        };
+        const check = () => {
+          const snapshot = state.getSnapshot();
+          if (snapshot.writable) return finish(undefined);
+          if (snapshot.phase === 'failed' || snapshot.phase === 'closed') {
+            return finish(new Error(snapshot.error?.message ?? snapshot.issue ?? snapshot.phase));
+          }
+          return undefined;
+        };
+        unsubscribe = state.subscribe(check);
+        check();
+      });
+    }
+
+    /**
+     * Run a command in a DSH terminal of the Session, reusing the built-in
+     * terminal: the Host terminal is created through the terminal service,
+     * given the command as input, then surfaced in the sidebar's terminal tab
+     * so the user can watch and manage the process there. Closing that tab
+     * closes the process.
+     * @returns { ok: true } or { error: <locale key> }.
+     */
+    async function runInTerminal(services, sessionId, command) {
+      const webTerminals = services?.webTerminals;
+      const sidebarRight = services?.sidebarRight;
+      if (webTerminals === undefined || sidebarRight === undefined) return { error: 'noTerminal' };
+      const key = `dsh-quick-reply:${globalThis.crypto.randomUUID()}`;
+      // Without a terminalId the service allocates a new Host terminal and
+      // exposes its identity as `view.id`.
+      const view = webTerminals.view(sessionId, key, key);
+      const id = view.id;
+      // A mounted view attaches the input channel; unmounting keeps the process alive.
+      const unmount = view.mount();
+      try {
+        await untilWritable(view.state, 10000);
+        view.write(`${command}\r`);
+      } catch (cause) {
+        unmount();
+        void view.close();
+        throw cause;
+      }
+      sidebarRight.openTab('terminal', { params: { terminalId: id } });
+      // write() only queues input; unmounting drops the queue, so wait for the Host ack first.
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      unmount();
+      return { ok: true };
     }
 
     /**
@@ -418,7 +497,7 @@ window.__ModuleLoader__.load({
 
     // ---- Dock button and popover ----
 
-    function QuickReplyDock(props, t, sessions, catalog) {
+    function QuickReplyDock(props, t, sessions, catalog, services) {
       const sessionId = props.sessionId;
       const available = sessionId !== undefined;
       const [items, setItems] = React.useState(() => loadItems(browserStorage()));
@@ -521,6 +600,11 @@ window.__ModuleLoader__.load({
 
       const sendItem = async (text, index) => {
         if (sendingIndex !== null) return;
+        const command = RUN_ENABLED ? parseRun(text) : null;
+        if (command !== null) {
+          await runCommand(command, index);
+          return;
+        }
         const target = conversationFor(sessions, sessionId);
         if (target.error !== undefined) {
           setError(t(target.error));
@@ -534,6 +618,25 @@ window.__ModuleLoader__.load({
         } catch (cause) {
           const reason = cause instanceof Error ? cause.message : String(cause);
           setError(`${t('sendFailed')}${reason}`);
+        } finally {
+          setSendingIndex(null);
+        }
+      };
+
+      const runCommand = async (command, index) => {
+        if (!available) {
+          setError(t('noSession'));
+          return;
+        }
+        setSendingIndex(index);
+        setError(null);
+        try {
+          const result = await runInTerminal(services, sessionId, command);
+          if (result.error !== undefined) setError(t(result.error));
+          else closePanel();
+        } catch (cause) {
+          const reason = cause instanceof Error ? cause.message : String(cause);
+          setError(`${t('runFailed')}${reason}`);
         } finally {
           setSendingIndex(null);
         }
@@ -564,6 +667,13 @@ window.__ModuleLoader__.load({
       const insertSkillTrigger = () => {
         setError(null);
         setEditor(prev => ({ ...prev, text: withSkillTrigger(prev.text) }));
+        focusSkillInput();
+      };
+
+      /** Start a command phrase: a leading `! ` marks it as a terminal command. */
+      const insertRunPrefix = () => {
+        setError(null);
+        setEditor(prev => ({ ...prev, text: prev.text.startsWith(RUN_PREFIX) ? prev.text : RUN_PREFIX + prev.text }));
         focusSkillInput();
       };
 
@@ -641,7 +751,9 @@ window.__ModuleLoader__.load({
 
         // Typing a trailing `/token` opens the candidate list under the editor;
         // the row's `/` button starts one without typing.
-        const query = skillQuery(editor?.text ?? '');
+        // A plain saved phrase stays plain: no `/` button, no candidate list.
+        const allowSkill = editor !== null && (editor.index === 'new' || skillTokens(items[editor.index]).length > 0);
+        const query = allowSkill ? skillQuery(editor.text) : null;
         const candidates = query === null || skills?.list === undefined
           ? null
           : rankSkills(skills.list, query);
@@ -677,13 +789,20 @@ window.__ModuleLoader__.load({
             h('li', { key: `${key}-row`, className: 'dqr-row dqr-editing' },
               input,
               h('div', { className: 'dqr-edit-actions' },
-                h('button', {
+                allowSkill ? h('button', {
                   type: 'button',
                   className: 'dqr-icon-btn dqr-skill-toggle',
                   title: t('skillPick'),
                   'aria-label': t('skillPick'),
                   onClick: insertSkillTrigger,
-                }, '/'),
+                }, '/') : null,
+                RUN_ENABLED ? h('button', {
+                  type: 'button',
+                  className: 'dqr-icon-btn dqr-skill-toggle',
+                  title: t('runPick'),
+                  'aria-label': t('runPick'),
+                  onClick: insertRunPrefix,
+                }, '!') : null,
                 editor.index === 'new' ? null : h('button', {
                   type: 'button',
                   className: 'dqr-icon-btn dqr-danger',
@@ -762,10 +881,7 @@ window.__ModuleLoader__.load({
               onClick: () => { void sendItem(entry.text, entry.i); },
             }, sendingIndex === entry.i
               ? t('sending')
-              : [resolved === undefined
-                ? null
-                : h('span', { key: 'mark', className: 'dqr-skill-mark', 'aria-hidden': true }, skillIcon(12)),
-                entry.text]),
+              : entry.text),
             h('button', {
               type: 'button',
               className: 'dqr-icon-btn',
@@ -812,7 +928,7 @@ window.__ModuleLoader__.load({
       ctx.effect(() => ctx.locale.register(NS, DICTS), 'quick-reply: dictionaries');
       ctx.effect(() => installStyles(), 'quick-reply: stylesheet');
 
-      ctx.inject(['slots', 'locale', 'sessions', 'remote', 'remote.skills'], (scope) => {
+      ctx.inject(['slots', 'locale', 'sessions', 'remote', 'remote.skills', 'webTerminals', 'sidebarRight'], (scope) => {
         const slots = scope.get('slots');
         const sessions = scope.get('sessions');
         const remotes = scope.get('remote');
@@ -820,12 +936,14 @@ window.__ModuleLoader__.load({
         if (sessions === undefined) return;
         // Absent `skills` only costs the picker; phrases still send as text.
         const catalog = remotes?.skills === undefined ? undefined : createSkillCatalog(sessions, remotes);
+        // Absent terminal services only disable `! ` command phrases.
+        const services = { webTerminals: scope.get('webTerminals'), sidebarRight: scope.get('sidebarRight') };
         slots.inject('conversation.composer.dock', () => slots.register({
           name: 'conversation.composer.dock',
           id: 'quick-reply',
           // Row start, ahead of the MCP trigger (order -50).
           order: -100,
-        }, (props) => QuickReplyDock(props, t, sessions, catalog)));
+        }, (props) => QuickReplyDock(props, t, sessions, catalog, services)));
       });
     }
 

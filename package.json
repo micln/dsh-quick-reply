@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "Adds a composer-dock button that sends a user-configured, ordered sequence of messages (e.g. \"按照你的推荐建议执行\", \"继续\") into the current DSH session.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/micln/dsh-quick-reply.git"
+  },
+  "homepage": "https://github.com/micln/dsh-quick-reply",
   "type": "module",
   "keywords": [
     "deepseek-harness",
@@ -14,7 +19,6 @@
     ".": "./index.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg",
     "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "scripts": {
