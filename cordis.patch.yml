@@ -1,0 +1,4 @@
+- insert:
+    - id: quick-reply
+      name: dsh-quick-reply
+      config: {}
