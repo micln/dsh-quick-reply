@@ -7,7 +7,7 @@ DSH 插件：在 Web UI 的会话输入区停靠一个「快捷发送」按钮�
 | 文件 | 作用 |
 |---|---|
 | `client.js` | 浏览器端 UI bundle（`window.__ModuleLoader__.load`）：停靠按钮、面板、编辑、拖拽排序、技能候选。纯逻辑挂在返回对象的 `core` 上，是 Node 里唯一可测的部分 |
-| `client.test.mjs` | `node --test` 用例：桩 loader 求值 `client.js`，只测 `core` 里的纯函数 |
+| `client.test.mjs` | `node --test` 用例：桩 loader 求值 `client.js`，覆盖 `core` 纯函数与可选技能服务下的 dock 注册 |
 | `index.js` | host 侧空插件，只导出 `name` / `apply`，让插件进 Loader |
 | `cordis.patch.yml` | bundle patch，由 `package.json` 的 `dsh.bundle.patch` 声明 |
 | `locale/{en,zh}.json` | 插件**展示元信息**（`meta.title` / `meta.description`） |
@@ -46,7 +46,7 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 ## 硬约束
 
 - **client bundle 不是 ESM**：`client.js` 里不能 `import`，只能 `require` 宿主冻结模块表里的包（`react`、`react-dom`、`@deepseek-ai/dsh-client-ui-primitives`）。这些**不是 npm 依赖**——宿主在浏览器里提供，profile 的 `node_modules` 里没有它们，所以不要写进 `peerDependencies` 或 `dependencies`（同作者的 `dsh-mcp-autoload` 同样 require 但未声明；声明为 peer 会让 npm 去 registry 解析并可能报 `ERESOLVE`）。host 半目前没有任何 require。
-- **返回对象上的 `inject` 是硬依赖**：Cordis 要求其中每个名字都有实现，缺一该插件停在 PENDING、`apply` 根本不执行。可选服务（`remote.skills`、`webTerminals`、`sidebarRight`）必须 `scope.get()` 后判空降级，不要放进 `inject`。`package.json` 的 `dsh.client.inject` 是另一回事——那是 client 模块图的**前置加载顺序**，不是服务依赖，两者名字撞车不要混。
+- **返回对象上的 `inject` 是硬依赖**：Cordis 要求其中每个名字都有实现，缺一该插件停在 PENDING、`apply` 根本不执行。可选服务（`remote.skills`、`webTerminals`、`sidebarRight`）必须 `scope.get()` 后判空降级，不要放进 `inject`。技能服务直接用 `scope.get('remote.skills')`：`scope.get('remote')?.skills` 仍会触发 `remote.skills` 的依赖检查，导致子插件 FAILED、dock 不注册。`package.json` 的 `dsh.client.inject` 是另一回事——那是 client 模块图的**前置加载顺序**，不是服务依赖，两者名字撞车不要混。
 - **dock order**：`conversation.composer.dock` 只有负 order 能用，本插件占 `-100`（分配表见工作区根 `AGENTS.md` §2.5）。改 order 前先查表。
 - **持久化**：key 带版本 `dsh-quick-reply:items:v1`；读取失败、损坏 JSON、超长、越界都要回落到默认值并限幅（`MAX_ITEMS=20`、`MAX_TEXT_LENGTH=2000`）。默认四条：`按推荐执行` / `我已做完，你继续` / `端到端测试一下` / `/handoff`。
 - **技能语法**只认宿主的手势文法 `/(^|\s)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?=\s|$)/`；编辑区里的 `/` 按钮只在**新增**短语或编辑**已含 `/token`** 的短语时出现（`allowSkill`），不含标记的短语保持纯文本。候选上限 `MAX_MATCHES=50`。

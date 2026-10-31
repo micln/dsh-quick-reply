@@ -12,6 +12,35 @@ new Function(readFileSync(join(here, 'client.js'), 'utf8'))()
 const stub = new Proxy(function () {}, { get: () => stub, apply: () => stub })
 const { core } = captured.factory(name => (name === 'react' || name === 'react-dom' || name === '@deepseek-ai/dsh-client-ui-primitives' ? stub : undefined))
 
+test('dock registers with or without optional skills behind a guarded Remote facade', async () => {
+  const plugin = captured.factory(() => stub)
+  for (const skills of [undefined, { list: async () => ({ ok: true, value: { skills: [] } }) }]) {
+    const registrations = []
+    const remote = new Proxy({}, {
+      get() { throw new Error('cannot get property "remote.skills" without inject') },
+    })
+    const slots = {
+      inject(name, install) { return install() },
+      register(options, component) {
+        registrations.push({ options, component })
+        return () => {}
+      },
+    }
+    const services = { slots, locale: { bind: () => key => key }, sessions: {}, remote, 'remote.skills': skills }
+    const scope = { get: name => services[name], locale: services.locale }
+    // Effects are not run here: this test observes registration, not DOM styles.
+    await plugin.apply({
+      effect() {},
+      inject(dependencies, callback) { return callback(scope) },
+    })
+    assert.equal(registrations.length, 1)
+    assert.equal(registrations[0].options.name, 'conversation.composer.dock')
+    assert.equal(registrations[0].options.id, 'quick-reply')
+    assert.equal(typeof registrations[0].component, 'function')
+    assert.ok(!plugin.inject.includes('remote.skills'))
+  }
+})
+
 const memoryStorage = () => {
   const map = new Map()
   return {

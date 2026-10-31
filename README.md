@@ -82,7 +82,8 @@ The rest of this document is for plugin developers.
 
 ### Dependencies
 
-- Skill suggestions come from `remote.skills` (`skills/list`). When that service is
+- Skill suggestions come from the optional `remote.skills` service (`skills/list`),
+  read directly with `scope.get('remote.skills')`. When that service is
   unavailable the plugin still works — you just get no suggestion list, and typing
   `/name` by hand still works.
 - Messages are sent through the session's `conversation` service, `send(text)`.
@@ -109,9 +110,9 @@ changing it.
 npm test
 ```
 
-The tests evaluate `client.js` in Node with a stub loader and only cover the
-exported pure functions: storage normalization, reordering, and `/name` syntax
-parsing and filtering.
+The tests evaluate `client.js` in Node with a stub loader. They cover storage
+normalization, reordering, `/name` syntax parsing and filtering, and dock
+registration with or without the optional skills service behind a guarded Remote facade.
 
 Before releasing, check the publish manifest with `npm pack --dry-run`: every
 runtime file must be listed (both READMEs included) and test or temporary files

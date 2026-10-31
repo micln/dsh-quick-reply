@@ -464,7 +464,7 @@ window.__ModuleLoader__.load({
      * The RPC holds a retained reference for its own lifetime: the catalog
      * requires an open Client Session, not merely an address.
      */
-    function createSkillCatalog(sessions, remotes) {
+    function createSkillCatalog(sessions, skills) {
       const cache = new Map();
       return function catalog(sessionId) {
         const cached = cache.get(sessionId);
@@ -477,7 +477,7 @@ window.__ModuleLoader__.load({
             if (state.openState !== 'open') {
               throw state.openError ?? new Error(`session "${sessionId}" is not open`);
             }
-            const result = await remotes.skills.list({ sessionId });
+            const result = await skills.list({ sessionId });
             if (!result.ok) {
               throw new Error(`skills/list failed: ${result.error.code}: ${result.error.message}`);
             }
@@ -934,11 +934,11 @@ window.__ModuleLoader__.load({
       ctx.inject(['slots', 'locale', 'sessions'], (scope) => {
         const slots = scope.get('slots');
         const sessions = scope.get('sessions');
-        const remotes = scope.get('remote');
+        const skills = scope.get('remote.skills');
         const t = scope.locale.bind(NS);
         if (sessions === undefined) return;
         // Absent `skills` only costs the picker; phrases still send as text.
-        const catalog = remotes?.skills === undefined ? undefined : createSkillCatalog(sessions, remotes);
+        const catalog = skills === undefined ? undefined : createSkillCatalog(sessions, skills);
         // Absent terminal services only disable `! ` command phrases.
         const services = { webTerminals: scope.get('webTerminals'), sidebarRight: scope.get('sidebarRight') };
         slots.inject('conversation.composer.dock', () => slots.register({

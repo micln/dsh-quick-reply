@@ -67,7 +67,7 @@ dsh plugin --profile web remove dsh-quick-reply
 
 ### 依赖
 
-- 技能候选来自 `remote.skills`（`skills/list`）。该服务不可用时插件仍然可用，只是没有候选列表，手动输入 `/name` 依然有效。
+- 技能候选来自可选服务 `remote.skills`（`skills/list`），通过 `scope.get('remote.skills')` 直接读取。该服务不可用时插件仍然可用，只是没有候选列表，手动输入 `/name` 依然有效。
 - 发送消息通过会话的 `conversation` 服务的 `send(text)`。
 
 ### 本地调试
@@ -86,7 +86,7 @@ host 半（`index.js`）不在这套 HMR 范围内，改完需要重启实例。
 npm test
 ```
 
-测试在 Node 中以桩 loader 求值 `client.js`，只覆盖导出的纯函数：存储规范化、顺序调整、`/name` 语法解析与筛选。
+测试在 Node 中以桩 loader 求值 `client.js`，覆盖存储规范化、顺序调整、`/name` 语法解析与筛选，以及受保护 Remote facade 下有、无可选技能服务时的 dock 注册。
 
 发布前用 `npm pack --dry-run` 核对发布清单：运行时文件一个不少（两份 README 都在内），测试与临时文件一个不多。
 
