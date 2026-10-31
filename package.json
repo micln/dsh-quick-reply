@@ -29,7 +29,8 @@
     "client.js",
     "cordis.patch.yml",
     "locale/*.json",
-    "README.md"
+    "README.md",
+    "README.zh.md"
   ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0",

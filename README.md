@@ -1,98 +1,130 @@
 # dsh-quick-reply
 
-在 DeepSeek Harness 的会话输入区加一个「快捷发送」按钮。把常用的话术存成短语，点一下就发到当前会话，不用每次重新输入。
+Adds a quick-send button to the DeepSeek Harness composer. Save the phrases you
+keep retyping, then send any of them to the current session with one click.
 
-![快捷发送面板](https://raw.githubusercontent.com/micln/dsh-quick-reply/master/docs/panel.png)
+English | [中文](README.zh.md)
 
-## 能做什么
+![Quick reply panel](https://raw.githubusercontent.com/micln/dsh-quick-reply/master/docs/panel.png)
 
-- **一键发送**：点击面板里的任意一条短语，它会作为一条消息发到当前会话，面板随即收起。
-- **技能快捷方式**：短语里可以写 `/技能名`，等价于手动输入这个技能。添加或编辑时输入 `/` 或点 `/` 按钮，会列出当前会话可用的技能供选择。
-- **自定义顺序**：按住 `⋮⋮` 上下拖动即可调整顺序。
-- **就地编辑**：点 ✎ 修改短语，`🗑` 删除，`✓` 保存，`✕` 取消。
-- **随时添加**：面板右上角的 `+` 在末尾新增一条（最多 20 条，每条不超过 2000 字）。
+## What it does
 
-默认提供四条：`按推荐执行`、`我已做完，你继续`、`端到端测试一下`、`/handoff`（最后一条是技能快捷方式，需要会话里存在 `handoff` 技能才会生效）。
+- **One-click send.** Clicking any phrase in the panel sends it as a message to
+  the current session and collapses the panel.
+- **Skill shortcuts.** A phrase may contain `/skill-name`, which is equivalent to
+  typing that skill by hand. When adding or editing, type `/` or press the `/`
+  button to list the skills available in the current session.
+- **Custom order.** Hold `⋮⋮` and drag up or down to reorder.
+- **Edit in place.** ✎ edits a phrase, `🗑` deletes it, `✓` saves, `✕` cancels.
+- **Add any time.** The `+` in the panel's top-right corner appends an entry
+  (at most 20 phrases, 2000 characters each).
 
-## 安装
+Four phrases ship by default: `按推荐执行`, `我已做完，你继续`, `端到端测试一下`, and
+`/handoff` (the last one is a skill shortcut and only fires when the session has a
+`handoff` skill).
 
-需要 DSH `>=0.2.1-0 <0.3.0`。通过 `dsh plugin` 安装，把 `--profile` 换成你使用的实例（`web` 或 `desktop`）：
+## Install
+
+Requires DSH `>=0.2.1-0 <0.3.0`. Install through `dsh plugin`, replacing
+`--profile` with the instance you use (`web` or `desktop`):
 
 ```sh
 dsh plugin --profile web add dsh-quick-reply
 ```
 
-安装后重启对应的实例（`dsh web` 或桌面应用），然后在浏览器里强制刷新（Cmd/Ctrl+Shift+R）。
+Afterwards restart that instance (`dsh web` or the desktop app), then hard-refresh
+the browser (Cmd/Ctrl+Shift+R).
 
-更新到最新版本：
+Update to the latest version:
 
 ```sh
 dsh plugin --profile web add dsh-quick-reply@latest
 ```
 
-卸载：
+Uninstall:
 
 ```sh
 dsh plugin --profile web remove dsh-quick-reply
 ```
 
-## 使用说明
+## Usage
 
-- 短语保存在**当前浏览器**的 `localStorage` 里（key 为 `dsh-quick-reply:items:v1`），**不跨浏览器、不跨设备同步**。换浏览器或清除站点数据后需要重新添加。
-- 技能列表来自当前会话。切换会话后可用的技能会跟着变化。
-- 写错的技能名不会报错，会按普通文本原样发出去。
+- Phrases live in the **current browser's** `localStorage` (key
+  `dsh-quick-reply:items:v1`); they are **not synced across browsers or devices**.
+  Switching browsers or clearing site data means adding them again.
+- The skill list comes from the current session, so the available skills change
+  when you switch sessions.
+- A mistyped skill name does not raise an error: the text is sent as plain text.
 
-## 注意
+## Caveats
 
-- 点击短语时，内容会直接作为消息发送，与你手动输入一样，不会经过额外的确认。
-- 插件只负责发送文本，不会替你执行任何命令。
+- Clicking a phrase sends its content straight as a message, exactly as if you had
+  typed it yourself — there is no extra confirmation step.
+- The plugin only sends text; it never runs commands on your behalf.
 
 ---
 
-## 开发
+## Development
 
-以下内容面向插件开发者。
+The rest of this document is for plugin developers.
 
-### 结构
+### Layout
 
-| 文件 | 作用 |
+| File | Purpose |
 |---|---|
-| `client.js` | 浏览器端 UI bundle：停靠按钮、面板、编辑、拖拽排序、技能候选 |
-| `index.js` | host 侧的空插件，仅声明名称 |
-| `cordis.patch.yml` | bundle patch，由 `package.json` 的 `dsh.bundle.patch` 声明 |
-| `locale/{en,zh}.json` | 插件标题与描述 |
-| `client.test.mjs` | `node --test` 用例 |
+| `client.js` | Browser-side UI bundle: dock button, panel, editing, drag-reorder, skill suggestions |
+| `index.js` | Host-side no-op plugin that only declares its name |
+| `cordis.patch.yml` | Bundle patch, declared by `dsh.bundle.patch` in `package.json` |
+| `locale/{en,zh}.json` | Plugin title and description |
+| `client.test.mjs` | `node --test` cases |
 
-### 依赖
+### Dependencies
 
-- 技能候选来自 `remote.skills`（`skills/list`）。该服务不可用时插件仍然可用，只是没有候选列表，手动输入 `/name` 依然有效。
-- 发送消息通过会话的 `conversation` 服务的 `send(text)`，以 `queue` 模式提交。
+- Skill suggestions come from `remote.skills` (`skills/list`). When that service is
+  unavailable the plugin still works — you just get no suggestion list, and typing
+  `/name` by hand still works.
+- Messages are sent through the session's `conversation` service, `send(text)`,
+  submitted in `queue` mode.
 
-### 本地调试
+### Local debugging
 
 ```sh
-dsh plugin --profile web add /绝对路径/dsh-quick-reply
+dsh plugin --profile web add /absolute/path/to/dsh-quick-reply
 ```
 
-改动 `client.js` 后需要重启实例并强制刷新浏览器。
+Editing `client.js` hot-swaps on save: the host's built-in client HMR polls the
+loaded client assets every 500 ms (`{mtimeMs, ctimeMs, size}`), pushes a `rebuilt`
+frame over `/plugins/events`, and the browser swaps that plugin's bundle. **No
+instance restart and no page refresh is needed** (the bundle reload resets that
+plugin's front-end state). If a change does not show up, retry from
+Settings → Plugins.
 
-### 测试
+The host half (`index.js`) is outside that HMR path, so restart the instance after
+changing it.
+
+### Tests
 
 ```sh
 npm test
 ```
 
-测试在 Node 中以桩 loader 求值 `client.js`，只覆盖导出的纯函数：存储规范化、顺序调整、`/name` 语法解析与筛选。
+The tests evaluate `client.js` in Node with a stub loader and only cover the
+exported pure functions: storage normalization, reordering, and `/name` syntax
+parsing and filtering.
 
-### 发布
+Before releasing, check the publish manifest with `npm pack --dry-run`: every
+runtime file must be listed (both READMEs included) and test or temporary files
+must not be.
 
-版本由 tag 触发 CI 发布到 npm（Trusted Publishing，带 provenance）：
+### Release
+
+A tag triggers CI to publish to npm (Trusted Publishing, with provenance):
 
 ```sh
-# 修改 package.json 的 version，使其与 tag 一致
+# edit package.json's version so it matches the tag
 git commit -am "chore: release X.Y.Z"
 git push origin master
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-发布后 CI 会创建 GitHub Release。
+CI creates a GitHub Release afterwards.
