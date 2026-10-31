@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Quick reply",
-    "description": "A composer button that sends a configurable, ordered list of messages."
+    "description": "Composer-dock button that sends a saved phrase into the current session; a phrase may contain a `/skill-name` reference."
   }
 }

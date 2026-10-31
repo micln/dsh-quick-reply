@@ -12,8 +12,10 @@ English | [中文](README.zh.md)
 - **One-click send.** Clicking any phrase in the panel sends it as a message to
   the current session and collapses the panel.
 - **Skill shortcuts.** A phrase may contain `/skill-name`, which is equivalent to
-  typing that skill by hand. When adding or editing, type `/` or press the `/`
-  button to list the skills available in the current session.
+  typing that skill by hand. While adding a new phrase, or editing one that already
+  contains a `/skill-name` token, type `/` or press the `/` button to list the skills
+  available in the current session. A phrase without such a token stays plain text:
+  no `/` button, no candidate list.
 - **Custom order.** Hold `⋮⋮` and drag up or down to reorder.
 - **Edit in place.** ✎ edits a phrase, `🗑` deletes it, `✓` saves, `✕` cancels.
 - **Add any time.** The `+` in the panel's top-right corner appends an entry
@@ -83,8 +85,7 @@ The rest of this document is for plugin developers.
 - Skill suggestions come from `remote.skills` (`skills/list`). When that service is
   unavailable the plugin still works — you just get no suggestion list, and typing
   `/name` by hand still works.
-- Messages are sent through the session's `conversation` service, `send(text)`,
-  submitted in `queue` mode.
+- Messages are sent through the session's `conversation` service, `send(text)`.
 
 ### Local debugging
 

@@ -11,7 +11,7 @@
  * across browsers or machines.
  *
  * Sending: the phrase goes through the session's conversation service
- * `send(text)`, which submits in `queue` mode.
+ * `send(text)`.
  */
 
 window.__ModuleLoader__.load({

@@ -1,7 +1,7 @@
 {
   "name": "dsh-quick-reply",
-  "version": "0.2.1",
-  "description": "Adds a composer-dock button that sends a user-configured, ordered sequence of messages (e.g. \"按照你的推荐建议执行\", \"继续\") into the current DSH session.",
+  "version": "0.2.2",
+  "description": "Adds a composer-dock button that sends a saved phrase into the current session with one click; phrases live in the browser's localStorage, up to 20 entries of 2000 characters each.",
   "license": "MIT",
   "repository": {
     "type": "git",
