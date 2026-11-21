@@ -87,6 +87,13 @@ The rest of this document is for plugin developers.
   unavailable the plugin still works — you just get no suggestion list, and typing
   `/name` by hand still works.
 - Messages are sent through the session's `conversation` service, `send(text)`.
+- The panel is placed with CSS anchor positioning: the trigger publishes an
+  `anchor-name`, the portaled panel points `position-anchor` back at it. DSH
+  0.2.2 removed `useAnchoredPosition` from the client primitives, so nothing here
+  measures the trigger.
+- If a DSH upgrade removes a Client UI API this bundle calls, the dock renders
+  `Quick send · failed to render` — the reason on hover and in `console.error` —
+  instead of disappearing silently.
 
 ### Local debugging
 

@@ -241,6 +241,8 @@ window.__ModuleLoader__.load({
         skillNone: 'No matching skill',
         skillUnavailable: 'Skill list unavailable for this session',
         skillUserOnly: 'user-only',
+        renderFailed: 'failed to render',
+        renderFailedHint: 'The plugin could not draw its dock control, so the host removed it. The detail is above and in the browser console; resolve the version mismatch, then reload the page.',
       },
       zh: {
         trigger: '快捷发送',
@@ -271,6 +273,8 @@ window.__ModuleLoader__.load({
         skillNone: '没有匹配的技能',
         skillUnavailable: '当前会话的技能列表不可用',
         skillUserOnly: '仅用户',
+        renderFailed: '渲染失败',
+        renderFailedHint: '插件无法绘制停靠栏控件，宿主已将其移除。上方与浏览器控制台里有详细信息；解决版本不匹配后重新加载页面。',
       },
     };
 
@@ -331,11 +335,48 @@ window.__ModuleLoader__.load({
   background: var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,.06));
   color: var(--dsw-alias-label-secondary, #555);
 }
+/* Render-failure marker: keeps the trigger's footprint so a crash reads as a
+   broken control rather than an absent one. Deliberately uses no Primitives
+   glyph, no portal and no anchor — nothing a version gap can remove. */
+[data-dsh-quick-reply] .dqr-dock-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 1px 8px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-state-error-primary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: help;
+}
+[data-dsh-quick-reply] .dqr-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-tertiary);
+}
+[data-dsh-quick-reply] .dqr-dot-error {
+  background: var(--dsw-alias-state-error-primary);
+}
 .dqr-panel {
   position: fixed;
+  position-area: none;
+  top: max(12px, var(--dsh-frame-overlay-top, 12px));
+  left: 12px;
+  right: anchor(right);
+  bottom: calc(anchor(top) + 8px);
+  align-self: safe end;
+  justify-self: safe end;
+  height: fit-content;
+  min-height: 0;
+  margin: 0;
   z-index: 1100;
   box-sizing: border-box;
-  width: max-content;
+  width: fit-content;
   min-width: 168px;
   max-width: min(264px, calc(100vw - 24px));
   max-height: min(70vh, 480px);
@@ -551,15 +592,10 @@ window.__ModuleLoader__.load({
         });
       };
 
-      const position = Primitives.useAnchoredPosition({
-        open: open && available,
-        anchorRef: rootRef,
-        panelRef,
-        side: 'top',
-        align: 'end',
-        gap: 8,
-        margin: 12,
-      });
+      // The trigger publishes this dashed-ident as its `anchor-name` and the
+      // portaled panel points its `position-anchor` back at it; CSS resolves
+      // the placement, so nothing here measures the anchor.
+      const anchorName = `--dqr-${React.useId().replaceAll(':', '')}`;
 
       const closePanel = React.useCallback(() => {
         setOpen(false);
@@ -741,6 +777,9 @@ window.__ModuleLoader__.load({
       const trigger = h('button', {
         type: 'button',
         className: 'dqr-trigger',
+        // Named anchor for `.dqr-panel`; unique per instance because several
+        // triggers can be mounted at once across sessions.
+        style: { anchorName },
         'aria-haspopup': 'dialog',
         'aria-expanded': open,
         title: t('triggerTitle'),
@@ -904,7 +943,8 @@ window.__ModuleLoader__.load({
             role: 'dialog',
             'aria-label': t('panelTitle'),
             'data-dsh-quick-reply': true,
-            style: position ?? { visibility: 'hidden', left: 0, top: 0 },
+            // The panel's anchor, paired with the `anchor()` insets in the sheet.
+            style: { positionAnchor: anchorName },
           },
             h('div', { className: 'dqr-head' },
               h('span', null, t('panelTitle')),
@@ -925,6 +965,79 @@ window.__ModuleLoader__.load({
       return h('span', { ref: rootRef, 'data-dsh-quick-reply': true }, trigger, panel);
     }
 
+    // ---- Render-failure surfacing ----
+    // The host isolates a crashing dock entry by retiring it and leaving an
+    // empty `div[data-slot-error]` where its content would be, so a primitives
+    // export removed by a DSH upgrade reads exactly like "this plugin had
+    // nothing to show". Both guards keep the failure inside our own control:
+    // a capability probe for the primitives this bundle calls, and a React
+    // boundary for everything else that throws. The visible marker is also
+    // what stops the host's slot supervision from retiring the entry outright.
+
+    /** Primitives members this bundle calls unguarded; a missing one is a version gap. */
+    const REQUIRED_PRIMITIVES = [
+      'IconQueueOutlineRegular',
+      'useDismissOnOutsidePointer',
+    ];
+
+    /** The names this DSH build no longer exports. */
+    function missingPrimitives() {
+      return REQUIRED_PRIMITIVES.filter(key => Primitives[key] === undefined);
+    }
+
+    /**
+     * What the dock shows when this bundle cannot render: the trigger's own
+     * footprint worded as a failure, the reason on hover, and a DOM marker to
+     * find it by. Depends on nothing a version gap can remove.
+     */
+    function DockFailure(t, detail) {
+      const message = `${t('trigger')} · ${t('renderFailed')}`;
+      return h('span', { 'data-dsh-quick-reply': true },
+        h('span', {
+          className: 'dqr-dock-error',
+          'data-dsh-quick-reply-error': true,
+          role: 'note',
+          'aria-label': message,
+          title: `${detail}\n\n${t('renderFailedHint')}`,
+          onClick: () => { console.error('[quick-reply]', detail); },
+        },
+          h('span', { className: 'dqr-dot dqr-dot-error', 'aria-hidden': true }),
+          message));
+    }
+
+    /**
+     * One render failure, one marker. Catching here also keeps the host's slot
+     * boundaries from abdicating the entry, so a transient throw does not need
+     * a page reload to come back.
+     */
+    class DockGuard extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { error: null };
+      }
+
+      static getDerivedStateFromError(error) {
+        return { error };
+      }
+
+      componentDidCatch(error) {
+        console.error('[quick-reply] dock render failed:', error);
+      }
+
+      render() {
+        const { error } = this.state;
+        if (error !== null) {
+          const detail = error instanceof Error ? error.message : String(error);
+          return DockFailure(this.props.t, detail);
+        }
+        const missing = this.props.missing;
+        if (missing.length > 0) {
+          return DockFailure(this.props.t, `missing Primitives: ${missing.join(', ')}`);
+        }
+        return this.props.children;
+      }
+    }
+
     // ---- Browser plugin apply ----
 
     async function apply(ctx) {
@@ -941,12 +1054,16 @@ window.__ModuleLoader__.load({
         const catalog = skills === undefined ? undefined : createSkillCatalog(sessions, skills);
         // Absent terminal services only disable `! ` command phrases.
         const services = { webTerminals: scope.get('webTerminals'), sidebarRight: scope.get('sidebarRight') };
+        // Probed once per apply: a gap here means the installed DSH dropped an
+        // export this bundle calls, which the marker names outright.
+        const missing = missingPrimitives();
+        const Dock = (props) => QuickReplyDock(props, t, sessions, catalog, services);
         slots.inject('conversation.composer.dock', () => slots.register({
           name: 'conversation.composer.dock',
           id: 'quick-reply',
           // Row start, ahead of the MCP trigger (order -50).
           order: -100,
-        }, (props) => QuickReplyDock(props, t, sessions, catalog, services)));
+        }, (props) => h(DockGuard, { t, missing }, h(Dock, props))));
       });
     }
 

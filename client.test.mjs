@@ -41,6 +41,36 @@ test('dock registers with or without optional skills behind a guarded Remote fac
   }
 })
 
+test('dock still registers when the installed DSH drops the primitives it calls', async () => {
+  // DSH 0.2.2 removed `useAnchoredPosition`; the bundle must not touch it at
+  // registration time, and a gap in the remaining members has to degrade to
+  // the visible failure marker instead of throwing here.
+  const plugin = captured.factory(name => (name === 'react' || name === 'react-dom' ? stub : {}))
+  const registrations = []
+  const slots = {
+    inject(name, install) { return install() },
+    register(options, component) {
+      registrations.push({ options, component })
+      return () => {}
+    },
+  }
+  const services = { slots, locale: { bind: () => key => key }, sessions: {}, 'remote.skills': undefined }
+  const scope = { get: name => services[name], locale: services.locale }
+  await plugin.apply({
+    effect() {},
+    inject(dependencies, callback) { return callback(scope) },
+  })
+  assert.equal(registrations.length, 1)
+  assert.equal(registrations[0].options.id, 'quick-reply')
+})
+
+test('the panel is placed by CSS anchor positioning, not the removed hook', () => {
+  const source = readFileSync(join(here, 'client.js'), 'utf8')
+  assert.ok(!source.includes('useAnchoredPosition'))
+  assert.match(source, /positionAnchor: anchorName/)
+  assert.match(source, /right: anchor\(right\)/)
+})
+
 const memoryStorage = () => {
   const map = new Map()
   return {

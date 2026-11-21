@@ -69,6 +69,8 @@ dsh plugin --profile web remove dsh-quick-reply
 
 - 技能候选来自可选服务 `remote.skills`（`skills/list`），通过 `scope.get('remote.skills')` 直接读取。该服务不可用时插件仍然可用，只是没有候选列表，手动输入 `/name` 依然有效。
 - 发送消息通过会话的 `conversation` 服务的 `send(text)`。
+- 面板用 CSS anchor positioning 定位：触发器发布 `anchor-name`，portal 出去的面板用 `position-anchor` 指回去。DSH 0.2.2 删掉了 client primitives 里的 `useAnchoredPosition`，这里不再测量触发器位置。
+- 若 DSH 升级后删除了本 bundle 用到的 Client UI API，停靠栏显示 `快捷发送 · 渲染失败`（悬停看原因，`console.error` 里是同样的信息），而不是无声消失。
 
 ### 本地调试
 

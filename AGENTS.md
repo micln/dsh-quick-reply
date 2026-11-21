@@ -52,6 +52,8 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 - **技能语法**只认宿主的手势文法 `/(^|\s)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?=\s|$)/`；编辑区里的 `/` 按钮只在**新增**短语或编辑**已含 `/token`** 的短语时出现（`allowSkill`），不含标记的短语保持纯文本。候选上限 `MAX_MATCHES=50`。
 - **发送**走当前会话的 `conversation.send(text)`，是一句话直接发出、没有二次确认。不要在文档里声明代码里没有的行为（例如"以 queue 模式提交"——代码没有传 mode）。
 - **图标**用 primitives 内置图标并守卫取不到的情况（`typeof Icon === 'function' ? h(Icon) : null`）；样式只引宿主主题 token 并带 fallback，注入的 `<style>` 要引用计数、归零才 remove。
+- **面板定位用 CSS anchor positioning，不用测量 hook**：触发器 `style: { anchorName }`，portal 面板 `style: { positionAnchor: anchorName }`，CSS 里 `right: anchor(right)` / `bottom: calc(anchor(top) + 8px)`。DSH 0.2.2 从 primitives 删除了 `useAnchoredPosition`，再写回去会让 dock 渲染抛错、被宿主静默摘掉。
+- **渲染失败必须可见**：`REQUIRED_PRIMITIVES`（`IconQueueOutlineRegular`、`useDismissOnOutsidePointer`）+ `DockGuard`（`getDerivedStateFromError`）两道守卫，缺 API 或抛错时渲染 `快捷发送 · 渲染失败`。宿主对崩溃 entry 只留空的 `div[data-slot-error]`，没有这道守卫就和"插件没内容"无法区分。
 - 全 ESM、**无构建步骤**（源码即发布产物）、2 空格缩进、单引号。
 - 本目录常年多会话并行：改动在 worktree 里做，只显式 `git add` 自己改的文件，禁止 `git add -A`。
 
